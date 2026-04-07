@@ -10,7 +10,7 @@ function buildDiscordOAuthUrl() {
     scope: OAUTH_SCOPES,
     prompt: 'consent'
   });
-  return `https://discord.com/api/oauth2/authorize?${params.toString}`;
+  return `https://discord.com/api/oauth2/authorize?${params.toString()}`;
 }
 
 function showLoginStep() {
@@ -20,6 +20,28 @@ function showLoginStep() {
     loginStep.classList.remove('hidden');
     discordStart.disabled = true;
     discordStart.textContent = 'Redirecting to Discord...';
+  }
+}
+
+async function exchangeCodeForToken(code) {
+  try {
+    const response = await fetch('/api/exchange-discord-token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ code: code })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to exchange token');
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Token exchange error:', error);
+    throw error;
   }
 }
 
@@ -35,7 +57,6 @@ function handleDiscordCallback() {
     callbackRoot.innerHTML = `
       <h1>Discord login failed</h1>
       <p class="login-message error">${error}</p>
-      <p>Try again, line blahblahblah on I dont know.</p>
       <a href="index.html" class="primary-button">Back to Login</a>
     `;
     return;
@@ -44,19 +65,41 @@ function handleDiscordCallback() {
   if (!code) {
     callbackRoot.innerHTML = `
       <h1>No authorization code found</h1>
-      <p class="login-message error">Discord did not return a code. Please try using your brain, I'm not smart enough to make this work....</p>
+      <p class="login-message error">Discord did not return a code.</p>
       <a href="index.html" class="primary-button">Back to Login</a>
     `;
     return;
   }
 
+  // Show processing message
   callbackRoot.innerHTML = `
     <h1>Discord Authorized</h1>
-    <p class="login-message success">Authorization code received.</p>
-    
-    <pre class="auth-code">${code}</pre>
-    
+    <p class="login-message success">Authorization code received. Exchanging for user data...</p>
+    <div class="loading">Loading...</div>
   `;
+
+  // Exchange code for token and user data
+  exchangeCodeForToken(code)
+    .then(userData => {
+      callbackRoot.innerHTML = `
+        <h1>Login Successful!</h1>
+        <div class="user-info">
+          <img src="https://cdn.discordapp.com/avatars/${userData.id}/${userData.avatar}.png" 
+               alt="${userData.username}" onerror="this.style.display='none'">
+          <h2>Welcome, ${userData.username}!</h2>
+          <p>User ID: ${userData.id}</p>
+          <p>Email: ${userData.email || 'Not provided'}</p>
+        </div>
+        <button onclick="location.href='index.html'" class="primary-button">Continue</button>
+      `;
+    })
+    .catch(error => {
+      callbackRoot.innerHTML = `
+        <h1>Error</h1>
+        <p class="login-message error">Failed to get user data: ${error.message}</p>
+        <a href="index.html" class="primary-button">Try Again</a>
+      `;
+    });
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -72,3 +115,4 @@ document.addEventListener('DOMContentLoaded', function () {
     handleDiscordCallback();
   }
 });
+
