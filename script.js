@@ -10,7 +10,7 @@ function buildDiscordOAuthUrl() {
     scope: OAUTH_SCOPES,
     prompt: 'consent'
   });
-  return `https://discord.com/api/oauth2/authorize?${1490758089610362911}`;
+  return `https://discord.com/api/oauth2/authorize?${params.toString}`;
 }
 
 function showLoginStep() {
